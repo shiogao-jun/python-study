@@ -1,0 +1,86 @@
+"""
+=============================================================================
+[문제 명칭] 회원 활동 분석기 (상태 관리 기반 로그 분석)
+[학습 목표] 사용자별 상태 추적 및 비정상 로그 탐지 알고리즘 구현
+
+[요구사항 정의]
+1. 자동 파일 검색: userlog로 시작하는 모든 파일 탐색.
+2. 사용자별 활동 분석: 사용자별 로그인 횟수 집계 및 공동 1위 출력.
+3. 비정상 로그 탐지: LOGIN/LOGOUT 시퀀스 규칙을 어긴 로그 개수 계산.
+
+[나의 고민과 해결]
+- 리스트와 딕셔너리(xdict)를 조합하여 사용자별 활동 내역을 추적하는 공간을 마련함.
+- 사용자 상태를 기억하기 위해 리스트에 로그를 추가하고, 연속된 중복 시퀀스(LOGIN-LOGIN 등)를 
+  판단하는 로직을 구현함.
+- 변수명을 x, y, z로만 쓰던 습관에서 벗어나, 리스트 재활용을 통해 자원을 효율적으로 관리하려 노력함.
+
+[느낀점]
+- 상태를 기억한다는 것이 생각보다 훨씬 어려운 일임을 깨달음.
+- 코드가 길어지고 복잡해질수록 변수명을 잘 짓고 구조를 설계하는 게 왜 중요한지 뼈저리게 느꼈다.
+  아직은 많이 투박하지만, 내가 고민한 로직이 실제로 돌아가는 걸 보니 성취감이 크다.
+=============================================================================
+"""
+
+import os
+x = os.listdir()
+y = []
+for i in range(len(x)):
+    if x[i].startswith('userlog') and x[i].endswith('.txt') == 1:
+        y.append(x[i])
+
+x = []
+for i in range(len(y)):
+    with open(y[i],'r',encoding = 'utf-8') as f:
+        x.append(str(f.read()))
+
+y = []
+for i in range(len(x)):
+    y += x[i].split('\n')
+
+x = []
+for i in range(len(y)):
+    x.append(y[i][20:])
+
+y = sorted(x)
+a = int(y[-1][4:5])
+
+z = []
+for i in range(a):
+    z.append(0)
+
+for i in range(len(x)):
+    for l in range(1,a+1):
+        if f'user{l} LOGIN' in x[i]:
+            z[l-1] += 1
+
+y = []
+for i in range(a):
+    if z[i] == max(z):
+        y.append(f'user{i+1}')
+
+
+xdict  = {}
+for i in range(a):
+    xdict[f'user{i+1}'] = 0
+       
+xdictlist = list(xdict.values())
+for i in range(len(xdictlist)):
+               xdictlist[i] = list(str(xdictlist[i]))
+for i in range(len(x)):
+    for j in range(a):
+        if f'user{j+1}' in x[i]:
+            xdictlist[j].append(x[i])
+
+b = 0
+for i in range(a):
+    for j in range(len(xdictlist[i])-1):
+        if xdictlist[i][j] == xdictlist[i][j+1]:
+            b += 1
+
+with open('result.txt','w') as g:
+    for i in range(1,a+1):
+        g.write(f'user{i}: {z[i-1]}\n')
+    g.write('MOST_ACTIVE: ')
+    for i in range(len(y)):
+        g.write(y[i]+' ')
+    g.write(f'\nINVALID_LOGS: {b}')
