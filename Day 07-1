@@ -1,0 +1,77 @@
+"""
+=============================================================================
+[문제 명칭] 지하철 최단 경로 및 환승 페널티 분석기
+[학습 목표] 그래프 구조 이해 및 경로 탐색 알고리즘(완전 탐색) 경험
+
+[요구사항 정의]
+1. 그래프 모델링: 역과 역 사이의 이동 시간 및 노선 정보를 데이터화.
+2. 경로 탐색: 출발역에서 도착역까지 가능한 모든 경로와 시간 계산.
+3. 환승 페널티: 노선이 변경될 때마다 10분의 페널티를 시간 합계에 반영.
+4. 결과 분석: 최소 시간 경로, 전체 소요 시간, 총 환승 횟수 출력.
+
+[나의 고민과 해결]
+- 양방향 그래프를 튜플 키로 구현하여 연결 관계를 정의함.
+- 경로 탐색 과정에서 `copy()`를 사용하여 이동할 때마다 새로운 경로의 가능성을 
+  리스트로 확장해 나가는 방식으로 완전 탐색 로직을 구현함.
+- 환승 시 `linedict`를 비교하여 페널티를 적용하는 실질적인 비용 산출 로직 설계.
+
+[느낀점]
+- 지하철 노선 탐색이 단순히 '짧은 길'을 찾는 게 아니라 '비용(환승 포함)'을 
+  고려해야 하는 복잡한 문제임을 깨달았다.
+- 코드가 완벽하진 않아도, 문제를 풀기 위해 '경로를 저장하고 확장해나가는' 
+  방식의 알고리즘적 사고를 처음으로 도입해 보았다. 3시간 동안 고민하며 
+  알고리즘의 벽을 직접 경험한 것이 가장 큰 자산이다.
+=============================================================================
+"""
+
+stationdict = {}
+linedict = {}
+
+with open('stations.txt','r',encoding='utf-8') as f:
+    for lines in f.readlines():
+        stationdict[tuple(lines.split(' ')[:2])] = int(lines.split(' ')[2].split('\n')[0])
+
+with open('lines.txt','r',encoding='utf-8') as g:
+    for lines in g.readlines():
+        linedict[lines.split(' ')[0]] = lines.split(' ')[1].split('\n')[0]
+
+for lines in stationdict:
+    if linedict[lines[0]] != linedict[lines[1]]:
+        stationdict[lines] += 10
+
+for (x,y) in list(stationdict.keys()):
+    stationdict[(y,x)] = stationdict[(x,y)]
+
+start = input('start:')
+end = input('end:')
+pathdict = {}
+finalpath = {}
+transfertime = 0
+
+for lines in stationdict:
+    if lines[0] == start:
+        pathdict[(start,lines[1])] = int(stationdict[lines])
+
+for lines in stationdict:
+    x = len(pathdict.copy())
+    for i in range(x):
+        beforestate = list(pathdict.keys())[i]
+        if beforestate[0] == lines[1]:
+            continue
+        elif beforestate[-1] == end:
+            finalpath[beforestate] = pathdict[beforestate]
+            pathdict.pop(beforestate)
+            continue
+        elif lines[0] == beforestate[-1]:            
+            pathdict[beforestate+lines] = pathdict[beforestate] + int(stationdict[lines])
+       
+for lines in finalpath:
+    if finalpath[lines] == min(list(finalpath.values())):
+        print('TIME: '+f'{min(list(finalpath.values()))}')
+        y = " ".join(dict.fromkeys(lines)).split(' ')
+        print('PATH: '+" ".join(dict.fromkeys(lines)))
+
+for i in range(len(y)-1):
+    if linedict[y[i]] != linedict[y[i+1]]:
+        transfertime += 1
+print('TRANSFER: '+f'{transfertime}')
