@@ -1,0 +1,73 @@
+"""
+=============================================================================
+[문제 명칭] 서버 로그 압축 및 이상 구간(ANOMALY) 탐지 시스템
+[학습 목표] 연속 데이터의 그룹화 및 경계 조건(Boundary Condition) 처리
+
+[요구사항 정의]
+1. 로그 압축: 연속되는 동일 로그(ERROR, INFO 등)를 묶어서 개수와 시간 범위를 출력.
+2. 이상 구간 탐지: ERROR가 2회 이상 연속될 경우 해당 시간 범위를 'ANOMALY'로 분류.
+3. 결과 출력: 압축된 로그 리스트와 탐지된 이상 구간 출력.
+
+[나의 고민과 해결]
+- 리스트에 마지막 요소로 가상의 값(0)을 추가하여 반복문이 리스트 끝에서 
+  정상적으로 그룹을 닫고 로직을 수행하도록 처리함.
+- `try-except` 구문을 활용해 반복문 종료 시 발생하는 인덱스 오류를 
+  우아하게(혹은 과감하게) 방어함.
+- `pop(0)`을 활용하여 처리한 로그를 리스트에서 실시간으로 제거하며 시간 범위를 산출함.
+
+[느낀점]
+- 연속되는 데이터를 처리할 때 '언제 그룹을 끝낼 것인가'가 가장 중요하다는 걸 깨달음.
+- 코드를 짜다 보니 마지막 줄 처리 때문에 고생했는데, 경계 조건을 처리하는 
+  기술이 왜 중요한지 직접 경험했다. 비록 투박한 코드지만, 로직을 완성했을 때의 
+  성취감은 그 어떤 것보다 크다.
+=============================================================================
+"""
+
+with open('server_log.txt','r',encoding='utf-8') as f:
+    serverlist = f.readlines()
+
+statelist = []
+timelist = []
+for i in range(len(serverlist)):
+    statelist.append(serverlist[i].split(' ')[2].split('\n')[0])
+    timelist.append(serverlist[i].split(' ')[1])
+
+statelist.append(0)
+
+error_row = 1
+info_row = 1
+warning_row = 1
+timelist2 = []
+anomalytime = []
+
+try:
+    for i in range(1,len(statelist)+1):
+        if statelist[i] == statelist[i-1] and statelist[i] == 'ERROR':
+            error_row += 1
+   
+        elif statelist[i] == statelist[i-1] and statelist[i] == 'INFO':
+            info_row += 1
+   
+        elif statelist[i] == statelist[i-1] and statelist[i] == 'WARNING':
+            warning_row += 1
+   
+        else:
+            print(statelist[i-1]+' x '+f'{max(error_row,info_row,warning_row)}',end = ' ')
+            timelist2 = []
+            for j in range(max(error_row,info_row,warning_row)):
+                timelist2.append(timelist.pop(0))
+            print('('+timelist2[0]+' ~ '+timelist2[-1]+')')
+
+            if statelist[i-1] == 'ERROR' and max(error_row,info_row,warning_row) >= 2:
+                anomalytime.append(timelist2[0]+' ~ '+timelist2[-1])
+
+            error_row = 1
+            info_row = 1
+            warning_row = 1                
+
+except IndexError:
+        pass
+
+print('ANOMALY:')
+for i in range(len(anomalytime)):
+    print(anomalytime[i])
