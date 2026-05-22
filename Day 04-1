@@ -1,0 +1,85 @@
+"""
+=============================================================================
+[문제 명칭] 로그 데이터 분석기 (업그레이드 버전)
+[학습 목표] 문자열 파싱, 다중 파일 처리, 리스트 컴프리헨션을 활용한 통계
+
+[요구사항 정의]
+1. 자동 파일 검색: os.listdir()로 log*.txt 파일 자동 탐지.
+2. 로그 분석: ERROR, WARNING, INFO 빈도수 계산 및 공동 1위 처리.
+3. 시간대별 분석: 0~23시 로그 발생 빈도 계산 및 BUSY_HOUR 식별.
+
+[나의 고민과 해결]
+- 변수 24개를 만드는 대신 리스트(hour)를 사용하여 루프 최적화.
+- 공동 1위를 처리하기 위해 '리스트 컴프리헨션'과 'enumerate' 사용법을 학습.
+- 로그의 고정된 위치(슬라이싱)를 활용하여 시간대 추출 로직 구현.
+
+[느낀점]
+- 코드를 단순히 짜는 게 아니라, 어떻게 하면 효율적으로 굴릴지 고민하니 
+  훨씬 깔끔해졌다. 아메바의 첫 블로그처럼, 내 성장기록이 깃허브에 쌓이는 게 뿌듯하다.
+=============================================================================
+"""
+
+#for i in range(3):
+#    with open(f'log{i}.txt','w') as f:
+#        f.write(f'2026-05-01 12:03:21 INFO User login\n2026-05-01 12:03:25 ERROR Database failed\n2026-05-01 12:03:30 WARNING Memory high')
+       
+
+import os
+x = os.listdir()
+y = []
+for i in range(len(x)):
+    if x[i].startswith('log') and x[i].endswith('.txt') == 1:
+        y.append(x[i])
+   
+z = []
+for i in range(len(y)):
+    with open(f'log{i}.txt','r',encoding = 'utf-8') as f:
+        z.append(f.read())
+
+w = []
+for i in range(len(z)):
+    w += z[i].split('\n')
+
+a,b,c = 0,0,0
+d = []
+for i in range(len(w)):
+    a += 'ERROR' in w[i]
+    b += 'WARNING' in w[i]
+    c += 'INFO' in w[i]
+
+if max(a,b,c) == a:
+    d.append('ERROR')
+
+if max(a,b,c) == b:
+    d.append('WARNING')
+
+if max(a,b,c) == c:
+    d.append('INFO')
+   
+
+h = open('result.txt','w')
+h.write(f'ERROR:{a}\nWARNING:{b}\nINFO:{c}\n')
+h.write('MOST:')
+for i in range(len(d)):
+    h.write(' '+d[i])
+
+hour = []
+for i in range(24):
+    hour.append(0)
+
+for j in range(len(w)):
+    for i in range(24):
+        if 0 <= i < 10:
+            hour[i] += '0'+f'{i}:' in w[j][:14]
+
+        else:
+            hour[i] += f'{i}:' in w[j][:14]
+
+
+indexes = [i for i, v in enumerate(hour) if v == max(hour)] #mosthour이 겹칠수도 있어서 검색했음
+
+h.write('\nBUSY_HOUR:')
+for i in range(len(indexes)):
+    h.write(' '+str(indexes[i]))
+
+h.close()
