@@ -1,0 +1,94 @@
+"""
+=============================================================================
+[문제 명칭] 스마트 카페 좌석 관리 및 실시간 상태 동기화 시스템
+[학습 목표] 상태 관리(State Management), 조건부 로직 최적화, 비정상 상태(Anomaly) 탐지
+
+[요구사항 정의]
+1. 좌석 입/퇴장(CHECKIN/CHECKOUT): 좌석 사용 여부 및 중복 체크 로직 구현.
+2. 주문(ORDER): 사용자별 총 주문 금액 및 좌석별 인기(HOT_SEAT) 집계.
+3. 이동(MOVE): 기존 좌석 비우기와 신규 좌석 점유를 동시에 처리하는 원자적(Atomic) 이동 처리.
+4. 예외(Anomaly) 처리: 잘못된 좌석 점유, 비로그인 상태 주문, 잘못된 MOVE 시도 등을 무효화.
+
+[나의 고민과 해결]
+- `cafedict`와 `seatdict`를 분리하여 유저 중심과 좌석 중심의 상태를 정규화함.
+- 수학여행 중이라는 환경적 제약 속에서도 1시간의 집중력을 발휘해 예외 처리를 완벽히 구현함.
+- 반복문과 조건문이 다소 복잡하게 얽힌 부분을 해결하기 위해 고민했으나, 
+  데이터의 무결성을 최우선으로 하여 작동 가능한 논리 구조를 확보함.
+
+[느낀점]
+- 2일 동안 파이썬을 쉬었음에도 불구하고 즉시 논리 구조를 짜낸 것이 스스로도 뿌듯했다.
+- '반복문이 많다'는 스스로의 평가가 오히려 최적화를 지향하게 만드는 동기가 되었다. 
+  다음 단계에서는 '탐색 비용(Search Cost)'을 줄이는 자료구조(Dict 활용) 최적화에 도전할 계획이다.
+=============================================================================
+"""
+
+cafedict = {}
+seatdict = {}
+anomalylist = []
+
+with open('cafe_log.txt','r',encoding = 'utf-8') as f:
+    cafelist = f.readlines()
+
+for log in cafelist:
+    loglist = log.split(' ')
+    user = loglist[2]
+    action = loglist[3]
+    seat = loglist[4].split('\n')[0]
+
+    if user not in cafedict:
+        cafedict[user] = {'seat':0,'amount':0}
+
+    if action == 'CHECKIN':
+        if seat not in [cafedict[lines]['seat'] for lines in cafedict]:
+            cafedict[user]['seat'] = seat
+            if seat not in seatdict:
+                seatdict[seat] = 0
+        else:
+            anomalylist.append(user)
+
+    elif action == 'ORDER':
+        if cafedict[user]['seat'] == seat:
+            amount = int(loglist[5])
+            cafedict[user]['amount'] += amount
+            seatdict[seat] += 1
+        else:
+            anomalylist.append(user)
+
+    elif action == 'MOVE':
+        seat_move = loglist[5].split('\n')[0]
+        if cafedict[user]['seat'] == seat and seat_move\
+        not in [cafedict[lines]['seat'] for lines in cafedict]:
+            cafedict[user]['seat'] = seat_move
+            if seat_move not in seatdict:
+                seatdict[seat_move] = 0
+        else:
+            anomalylist.append(user)
+
+    elif action == 'CHECKOUT':
+        if cafedict[user]['seat'] == seat:
+            cafedict[user]['seat'] = 0
+        else:
+            anomalylist.append(user)
+
+
+occupiedlist = [cafedict[lines]['seat'] for lines in cafedict]
+for x in range(occupiedlist.count(0)):
+    occupiedlist.remove(0)
+max_val = max(list(seatdict.values()))
+anomalylist = sorted(set(anomalylist))
+
+with open('result.txt','w') as g:
+    for users in cafedict:
+        g.write(users+f": {cafedict[users]['amount']}\n")
+    g.write('\nOCCUPIED: ')
+    if occupiedlist != None:
+        for lines in occupiedlist:
+            g.write(lines+' ')
+    g.write('\nHOT_SEAT: ')
+    for seat in seatdict:
+        if seatdict[seat] == max_val:
+            g.write(seat+' ')
+    g.write('\nANOMALY: ')
+    for users in anomalylist:
+        g.write(users+' ')
+       
