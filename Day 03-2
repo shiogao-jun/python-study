@@ -1,0 +1,70 @@
+"""
+=============================================================================
+[문제 명칭] 미니 로그 분석기 및 통계 시스템
+[학습 목표] 다중 파일 처리(os 모듈) 및 데이터 분석 기초
+
+[요구사항 정의]
+1. 다중 파일 읽기: os.listdir()을 활용하여 폴더 내 모든 'log' 파일을 탐색.
+2. 데이터 전처리: 여러 파일의 내용을 리스트로 통합하고 개행 문자(\n) 제거.
+3. 통계 처리: ERROR, INFO, WARNING 각 유형의 빈도수를 계산.
+4. 결과 생성: 통계 분석 결과를 'result.txt' 파일로 저장.
+
+[나의 고민과 해결]
+- 파일 목록 중 'log'가 포함된 파일만 골라내기 위해 리스트 필터링 구현.
+- 리스트 합치기(c += b[i]) 및 개수 세기(count) 로직 활용.
+- 데이터 정제(rstrip)를 통해 분석 정확도 확보.
+- 개수가 겹치는 경우에 대한 처리는 추후 고도화 예정(현재는 우선순위로 판별).
+
+[느낀점]
+- 너무 창피해서 못 보여줄거 같음
+=============================================================================
+"""
+
+import os
+files = os.listdir()
+a = len(files)
+for i in range(a):
+    if 'log' in files[i] and '.txt' in files[i]:
+        continue
+
+    else:
+        files[i] = 'x'
+
+while True:
+    try:
+        files.remove('x')
+
+    except:
+        break
+
+b = []
+for i in range(1,len(files)+1):
+    with open(f'log{i}.txt','r',encoding='utf-8') as f:
+            b.append(f.readlines())
+
+c = []
+for i in range(len(b)):
+    c += b[i]
+
+for i in range(len(c)):
+    c[i] = c[i].rstrip('\n')
+
+x = c.count('ERROR')
+y = c.count('INFO')
+z = c.count('WARNING')
+def f(x,y,z):
+    if max(x,y,z) == x:
+        return 'ERROR'
+
+    elif max(x,y,z) == y:
+        return 'INFO'
+
+    else:
+        return 'WARNING'
+
+k = f(x,y,z)
+with open('result.txt','w') as t:
+    t.write(f'ERROR:{x}\n')
+    t.write(f'INFO:{y}\n')
+    t.write(f'WARNING:{z}\n')
+    t.write('MOST:'+k)
