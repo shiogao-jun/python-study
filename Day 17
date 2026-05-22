@@ -1,0 +1,93 @@
+"""
+=============================================================================
+[문제 명칭] CHAT TREND ANALYZER (채팅 로그 데이터 분석 및 패턴 탐지 시스템)
+[학습 목표] 문자열 전처리(Text Normalization), 데이터 빈도 분석, 비정상 패턴(SPAM) 탐지
+
+[요구사항 정의]
+1. 메시지 및 감성 분석: 사용자별 메시지 통계와 특정 단어 점수 기반 감성 수치 산출.
+2. 단어 빈도 분석: 구두점 제거 및 소문자 정규화를 통한 정확한 단어 개수 및 TOP_WORD 산출.
+3. 방별 데이터 집계: 각 채팅방별 총 단어 수 산출.
+4. 스팸 탐지(SPAMMER): 동일 사용자, 동일 방에서 연속 3회 이상 동일 메시지 송신 시 스팸으로 식별.
+
+[나의 고민과 해결]
+- `string.punctuation`과 `str.maketrans`를 사용하여 복잡한 텍스트에서 특수문자를 효율적으로 제거함.
+- 스팸 탐지를 위해 `for` 루프 내에서 인접한 로그의 메시지 배열을 직접 비교하는 방식을 사용하여 직관적으로 구현함.
+- 데이터 정규화 과정에서 딕셔너리 구조를 설계하고, 사용자와 방, 단어 빈도를 분리하여 집계의 효율성을 높임.
+
+[느낀점]
+- 17일 차가 되니 로그 시뮬레이션뿐만 아니라 데이터 정제(Cleaning)와 가공에 익숙해진 느낌임.
+- 반복적인 패턴의 로그를 분석하는 능력이 생겼으며, '도배'라는 비즈니스 로직을 코드로 변환하는 과정에서 실무적인 문제 해결 감각을 익힘.
+- 코드가 다소 반복적일 수 있다는 스스로의 평가를 수용하여, 다음 단계에서는 더 구조적인 객체 지향 프로그래밍이나 고차 함수를 활용한 최적화를 학습할 계획임.
+=============================================================================
+"""
+
+
+userdict = {}
+roomdict = {}
+worddict = {}
+spammer = []
+emotiondict = {"love":5,"happy":3,"dream":4,
+               "goodbye":-5,"sad":-3,"lonely":-4}
+
+with open('chat_log.txt','r',encoding = 'utf-8') as f:
+    chatlog = f.readlines()
+
+for x in range(len(chatlog)):
+    chatlog[x] = chatlog[x].split('\n')[0]
+
+import string #이부분은
+translator = str.maketrans('', '', string.punctuation) #검색했어요
+
+for log in chatlog:
+    loglist = log.split(' ')
+    user = loglist[2]
+    room = loglist[3]
+    words = loglist[4:]
+
+    if user not in userdict:
+        userdict[user] = {'msg':0,'emotion':0}
+
+    if room not in roomdict:
+        roomdict[room] = 0
+   
+    wordlist = []
+
+    for lines in words:
+        wordlist.append(lines.lower().translate(translator))
+        roomdict[room] += 1
+
+    for word in wordlist:
+        if word not in worddict:
+            worddict[word] = 0
+        worddict[word] += 1
+        if word in emotiondict:
+            userdict[user]['emotion'] += emotiondict[word]
+
+    userdict[user]['msg'] += 1
+   
+for x in range(1,len(chatlog)-1):
+    if chatlog[x-1].split(' ')[2:] == chatlog[x].split(' ')[2:] == chatlog[x+1].split(' ')[2:]:
+        spammer.append(chatlog[x].split(' ')[2])
+
+maxnum = max(worddict.values())
+spammer = sorted(set(spammer))
+
+with open('result.txt','w') as g:
+    for user in userdict:
+        g.write(user+f": {userdict[user]['msg']} messages")
+        g.write(f", emotion {userdict[user]['emotion']}\n")
+
+    for rooms in roomdict:
+        g.write(rooms+f": {roomdict[rooms]} words\n")
+
+    g.write('TOP_WORD: ')
+
+    for words in sorted(worddict):
+        if worddict[words] == maxnum:
+            g.write(words+' ')
+
+    g.write('\nSPAMMER: ')
+   
+    for users in spammer:
+        g.write(users+' ')
+       
