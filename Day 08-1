@@ -1,0 +1,82 @@
+"""
+=============================================================================
+[문제 명칭] 서버 접속 세션 및 사용자 상태 모니터링 시스템
+[학습 목표] 상태 머신(State Machine) 구현 및 비정상 접근 탐지(Anomaly Detection)
+
+[요구사항 정의]
+1. 세션 시간 계산: 로그인/로그아웃 시간 차이를 분 단위로 누적 합산.
+2. 상태 관리: 사용자별 로그인/로그아웃 상태를 실시간으로 추적하여 비정상 흐름 차단.
+3. 이상 탐지(ANOMALY): 중복 로그인 또는 로그아웃 없는 재로그인 등 비정상 패턴 기록.
+4. 분석 결과: 사용자별 총 접속 시간, 가장 오래 접속한 사용자, 이상 사용자 목록.
+
+[나의 고민과 해결]
+- `userdict` 내부에 `state` 필드를 두어, 직전 액션을 기록함으로써 현재 상태를 
+  판단하는 상태 머신 모델을 도입함.
+- `datetime`의 `timestamp()`를 활용해 시간 차를 구하고, 이를 분 단위(`//60`)로 
+  정확하게 치환하여 누적 접속 시간을 계산함.
+- `anomalylist`를 통해 비정상적인 액션이 한 번이라도 발생한 사용자를 
+  자동으로 필터링하여 이상 사용자로 분류함.
+
+[느낀점]
+- 상태를 저장하는 딕셔너리(`userdict`) 덕분에 예외 처리(중복 로그인 등)가 
+  훨씬 간결해졌다. 1시간도 안 걸려 구현했다는 건, 이제 문제의 핵심을 
+  파악하는 '직관'이 생겼다는 의미인 것 같다. 깔끔한 코드에서 오는 쾌감이 무엇인지 처음 느꼈다.
+=============================================================================
+"""
+
+userlist = []
+with open('access.txt','r',encoding = 'utf-8') as f:
+    for lines in f.readlines():
+        userlist.append(lines)
+
+for i in range(userlist.count('\n')):
+    userlist.remove('\n')
+
+userdict = {}
+anomalylist = []
+finaldict = {}
+
+from datetime import datetime
+for lines in userlist:
+    lineslist = lines.split(' ')
+    timestr = lineslist[0] +' '+ lineslist[1]
+    time = datetime.strptime(timestr, "%Y-%m-%d %H:%M:%S").timestamp()
+    user = lineslist[2]
+    action = lineslist[3].split('\n')[0]
+
+    if user not in userdict:
+        userdict[user] = {'time':0,'state':0,'timestayed':0}
+
+    if action == 'LOGIN':
+        if userdict[user]['state'] == action:
+            if user not in anomalylist:
+                anomalylist.append(user)
+        else:
+            userdict[user]['time'] = time
+            userdict[user]['state'] = action
+
+    if action == 'LOGOUT':
+        if userdict[user]['state'] == action or userdict[user]['state'] == 0:
+            if user not in anomalylist:
+                anomalylist.append(user)
+        else:
+            userdict[user]['timestayed'] += (time - userdict[user]['time'])
+            userdict[user]['time'] = 0
+            userdict[user]['state'] = action
+
+for users in userdict:
+    print(users+f": {int(userdict[users]['timestayed']//60)}")
+    finaldict[users] = int(userdict[users]['timestayed']//60)
+
+maxlist = []
+for users in finaldict:
+    if finaldict[users] == max(list(finaldict.values())):
+        maxlist.append(users)
+
+print('LONGEST: ',end='')
+for users in maxlist:
+    print(users,end='')
+print('\nANOMALY: ',end=' ')
+for users in anomalylist:
+    print(users,end=' ')
+   
