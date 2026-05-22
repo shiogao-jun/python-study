@@ -1,0 +1,113 @@
+"""
+=============================================================================
+[문제 명칭] 지하철 요금 정산 및 이상 행동 탐지 시스템
+[학습 목표] 그래프 데이터 구조화, 경로 합성 로직 구상, 예외 상태(Anomaly) 처리
+
+[요구사항 정의]
+1. 최단 경로 탐색: ENTER 역과 EXIT 역 사이의 최소 요금 산출.
+2. 상태 관리: 사용자의 ENTER/EXIT 순서 및 예외 상황(중복 ENTER, EXIT만 존재 등) 탐지.
+3. 데이터 통계: 가장 많이 이용된 역(MOST_USED) 카운트.
+
+[나의 고민과 해결]
+- 정해진 알고리즘을 모르는 상태에서, 주어진 역 사이의 비용(`faredict`)을 
+  합성하여 새로운 순서쌍을 계속 추가해 나가는 창의적인 완전 탐색 로직을 고안함.
+- `subwaydict`에 사용자의 현재 상태(`station` 리스트)를 기록하여, 
+  비정상적인 승하차 패턴을 `anomalylist`로 완벽하게 필터링함.
+
+[느낀점]
+- 다익스트라 같은 정석 알고리즘을 몰라서 무식하게 딕셔너리를 합성하는 방식으로 
+  풀었지만, 3시간 동안 포스트잇에 써가며 '경로를 어떻게 이을까' 고민했던 그 순간이 
+  알고리즘적 사고의 뼈대가 되었다. 실패작이라고 생각했지만, 지금 보니 내 나름의 
+  최선을 다한 '야생의 알고리즘'이었다.
+=============================================================================
+"""
+
+farelist = []
+with open('fare.txt','r',encoding = 'utf-8') as g:
+    farelist = g.readlines()
+
+faredict = {}
+faredict2 = {}
+stationlist = []
+for lines in farelist:
+    start = lines.split(' ')[0]
+    stationlist.append(start)
+    end = lines.split(' ')[1]
+    stationlist.append(end)
+    fare = int(lines.split(' ')[2].split('\n')[0])
+    if (start,end) not in faredict:
+        faredict[(start,end)] = fare
+        faredict[(end,start)] = fare
+stationlist = set(stationlist)
+
+pairslist = []
+for pairs in faredict:
+    pairslist.append(pairs)
+   
+anomalylist = []
+for pairs in pairslist:
+    for i in range(len(pairslist)):
+        start = pairs[0]
+        xstart = pairs[1]
+        end = pairslist[i][1]
+        xend = pairslist[i][0]
+        if xstart == xend and (start,end) not in faredict and start != end:
+            faredict[(start,end)] = faredict[(start,xstart)] + faredict[(xend,end)]
+            faredict[(end,start)] = faredict[(start,xstart)] + faredict[(xend,end)]
+            pairslist.append((start,end))
+            pairslist.append((end,start))
+
+subwaylist = []
+with open('subway.txt','r',encoding = 'utf-8') as f:
+    for lines in f.readlines():
+        subwaylist.append(lines.split(' '))
+
+stationdict = {}
+for i in range(subwaylist.count(['\n'])):
+    subwaylist.remove(['\n'])
+subwaydict = {}
+for lines in subwaylist:
+    user = lines[2]
+    action = lines[3]
+    station = lines[4].split('\n')[0]
+    if user not in subwaydict:
+        subwaydict[user] = {'station':[],'fare':0}
+
+    if action == 'ENTER':
+        if station not in stationlist:
+            anomalylist.append(user)
+        elif subwaydict[user]['station'] == []:
+            subwaydict[user]['station'].append(station)
+            if station not in stationdict:
+                stationdict[station] = 0
+            stationdict[station] += 1
+        else:
+            anomalylist.append(user)
+
+    if action == 'EXIT':
+        if station not in stationlist:
+            anomalylist.append(user)
+        elif subwaydict[user]['station'] != []:
+            subwaydict[user]['station'].append(station)
+            subwaydict[user]['fare'] += faredict[tuple(subwaydict[user]['station'])]
+            subwaydict[user]['station'] = []
+            if station not in stationdict:
+                stationdict[station] = 0
+            stationdict[station] += 1
+        else:
+            anomalylist.append(user)
+
+anomalylist = list(set(anomalylist))
+anomalylist.sort()
+
+for users in subwaydict:
+    print(users+f": {subwaydict[users]['fare']}")
+print('ANOMALY: ',end = '')
+for users in anomalylist:
+    print(users,end = ' ')
+
+print('\nMOST_USED: ',end = '')
+freq = max(list(stationdict.values()))
+for stations in stationdict:
+    if stationdict[stations] == freq:
+        print(stations,end = ' ')
