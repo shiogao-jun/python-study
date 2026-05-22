@@ -1,0 +1,76 @@
+"""
+=============================================================================
+[문제 명칭] 단어 빈도 분석 및 TOP 3 출력 프로그램
+[학습 목표] 데이터 생성, 파일 입출력 및 정렬 로직 학습
+
+[요구사항 정의]
+1. 데이터 생성: random 모듈을 사용하여 5개 단어를 100회 랜덤 생성 및 저장.
+2. 분석 프로세스: 파일에서 데이터를 읽어 단어별 빈도수 계산.
+3. 정렬 로직: 빈도수를 기준으로 내림차순 정렬하여 TOP 3 출력.
+
+[나의 고민과 해결]
+- 리스트 정렬과 데이터 매핑을 위해 문자열 변환 및 replace를 활용한 '연금술' 기법 도입.
+- ast.literal_eval을 사용하여 문자열을 다시 객체화하는 방식 시도.
+- 개수(count)만으로 해결하지 않고 정렬을 직접 구현하려다 보니 발생한 
+  데이터 매핑의 어려움을 강제 변환으로 우회함.
+
+[느낀점]
+- 코드가 너무 창피하지만, 작동은 한다. 컴퓨터의 원리를 이용하기보다 
+  내 의지대로 데이터를 끼워 맞추는 과정에서 '리스트 멤버 함수'의 중요성을 뼈저리게 느낌.
+=============================================================================
+"""
+
+words = ['apple', 'banana', 'cat', 'dog', 'elephant']
+with open('text.txt','w',encoding='utf-8') as l:
+    import random as r
+    for i in range(100):
+        l.write(words[r.randint(0,4)]+' ')
+
+with open('text.txt','r',encoding='utf-8') as li:
+    lis = li.read()
+    lis = lis.split(' ')
+    lis.pop(-1)
+
+a = lis.count('apple')
+b = lis.count('banana')
+c = lis.count('cat')
+d = lis.count('dog')
+e = lis.count('elephant')
+result = []
+
+if max(a,b,c,d,e) == a:
+    result.append('apple')
+
+if max(a,b,c,d,e) == b:
+    result.append('banana')
+
+if max(a,b,c,d,e) == c:
+    result.append('cat')
+
+if max(a,b,c,d,e) == d:
+    result.append('dog')
+
+if max(a,b,c,d,e) == e:
+    result.append('elephant')
+
+x = [a,b,c,d,e]
+y = str(sorted(x,reverse = True))
+y = y.replace(f'{a}',f"'apple:{a}'",1)
+y = y.replace(f'{b}',f"'banana:{b}'",1)
+y = y.replace(f'{c}',f"'cat:{c}'",1)
+y = y.replace(f'{d}',f"'dog:{d}'",1)
+y = y.replace(f'{e}',f"'elephant:{e}'",1)
+import ast #이 부분은
+z = ast.literal_eval(y) #검색했음
+for i in range(5):
+    print(z[i])
+w = str(z)
+w = w.replace(f"'apple:{a}'","'apple'",1)
+w = w.replace(f"'banana:{b}'","'banana'",1)
+w = w.replace(f"'cat:{c}'","'cat'",1)
+w = w.replace(f"'dog:{d}'","'dog'",1)
+w = w.replace(f"'elephant:{e}'","'elephant'",1)
+import ast
+u = ast.literal_eval(w)
+for i in range(3):
+    print(u[i]+' ',end='')
