@@ -1,0 +1,38 @@
+"""
+=============================================================================
+[문제 명칭] 중복 제거 및 순서 유지 분석기 (V1: 창의적 해결법)
+[학습 목표] 리스트를 활용한 데이터 필터링
+
+[요구사항 정의]
+1. 파일 읽기: text.txt 파일의 단어들을 리스트화.
+2. 중복 제거: set을 사용하지 않고 리스트의 메서드만으로 순서 유지하며 중복 제거.
+3. 데이터 저장: 중복이 제거된 단어들을 result.txt에 저장.
+
+[나의 고민과 해결]
+- 리스트의 순서를 뒤집고(reverse), 단어별 개수를 확인하여 중복을 제거함.
+- 다시 순서를 원래대로 돌려놓는 방식으로 '순서 유지'를 구현함.
+
+[느낀점]
+- 처음엔 무식해 보일지 몰라도 작동하는 코드를 만들었다. 
+- 왜 굳이 이런 복잡한 방식을 썼는지, 나중에 더 효율적인 방법과 비교해볼 생각이다.
+=============================================================================
+"""
+
+with open('text.txt','r',encoding = 'utf-8') as f:
+ x = str(f.read()).split(' ') 
+
+ x.reverse() 
+
+ for i in range(x.count('apple')-1): 
+ x.remove('apple') 
+ for i in range(x.count('banana')-1):
+ x.remove('banana') 
+ for i in range(x.count('cat')-1): 
+ x.remove('cat') 
+ for i in range(x.count('dog')-1): 
+ x.remove('dog') 
+
+ x.reverse()
+ with open('result.txt','w') as g: 
+ for i in range(4): 
+ g.write(x[i]+' ')
