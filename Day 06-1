@@ -1,0 +1,98 @@
+"""
+=============================================================================
+[문제 명칭] 파일 기반 은행 거래 로그 검증기
+[학습 목표] 상태 관리(잔액), 시간 정렬 및 비정상 트랜잭션 탐지 로직 구현
+
+[요구사항 정의]
+1. 로그 통합 및 정렬: 여러 파일의 거래 로그를 시간 순으로 통합 처리.
+2. 계좌 상태 관리: 입금/출금/송금에 따른 사용자별 잔액 실시간 업데이트.
+3. 무결성 검증 (INVALID): 잔액 부족, 자기 자신 송금, 0 이하 금액 거래 차단.
+4. 활동 분석 및 의심 탐지: 거래 횟수 기반 활동가 선정 및 1분 내 다중 거래 탐지.
+
+[나의 고민과 해결]
+- 거래 로그를 리스트에 모은 뒤 `sort()`를 통해 시간 순으로 정렬하여 시스템의 정확성을 확보함.
+- `if-else` 분기 처리를 통해 각 트랜잭션 유형별로 잔액을 안전하게 업데이트하는 시스템 구축.
+- 문자열 슬라이싱(`[:16]`)을 활용하여 분 단위 시간 비교 로직 구현 (가독성 및 효율 고려).
+
+[느낀점]
+- 함수나 딕셔너리를 활용하지 않고 리스트만으로도 시스템을 구현할 수 있음을 확인했으나, 
+  동시에 코드가 길어지며 함수화(Modularization)의 필요성을 뼈저리게 느꼈다.
+- 초보라고 생각했지만, 수천 명의 사용자가 있어도 돌아가는 일반화된 로직을 
+  스스로 완성했다는 점에서 큰 자신감을 얻었다.
+=============================================================================
+"""
+
+accountlist = []
+import os
+for i in range(len(os.listdir())):
+    if os.listdir()[i].startswith('tx') and os.listdir()[i].endswith('.txt'):
+        with open(os.listdir()[i],'r',encoding = 'utf-8') as f:
+             accountlist.append(f.readlines())
+
+accountlist2 = []
+for i in range(len(accountlist)):
+    for j in range(len(accountlist[i])):
+        accountlist2.append(accountlist[i][j])
+
+accountlist2.sort()
+userlist = []
+
+for i in range(len(accountlist2)):
+    userlist.append(accountlist2[i].split(' ')[2])
+
+usernumber = int(max(userlist).split('r')[1])
+
+useraccount = []
+valid = []
+validtime = []
+for i in range(usernumber):
+    useraccount.append(0)
+    valid.append(0)
+    validtime.append([])
+
+invalid = 0
+for i in range(len(accountlist2)):
+    for j in range(usernumber):
+        if accountlist2[i].split(' ')[2] == f'user{j+1}' and accountlist2[i].split(' ')[3] == 'DEPOSIT':
+            useraccount[j] = int(useraccount[j]) + int(accountlist2[i].split(' ')[4].split('\n')[0])
+            valid[j] += 1
+            validtime[j].append(accountlist2[i].split(' u')[0])
+
+    for j in range(usernumber):
+        if accountlist2[i].split(' ')[2] == f'user{j+1}' and accountlist2[i].split(' ')[3] == 'WITHDRAW':
+            if int(useraccount[j]) - int(accountlist2[i].split(' ')[4].split('\n')[0]) < 0:
+                invalid += 1
+            else:
+                useraccount[j] = int(useraccount[j]) - int(accountlist2[i].split(' ')[4].split('\n')[0])
+                valid[j] += 1
+                validtime[j].append(accountlist2[i].split(' u')[0])
+   
+    for j in range(usernumber):
+        if accountlist2[i].split(' ')[2] == f'user{j+1}' and accountlist2[i].split(' ')[3] == 'TRANSFER':
+            if accountlist2[i].split(' ')[2] == accountlist2[i].split(' ')[4]:
+                invalid += 1            
+            elif int(useraccount[j]) - int(accountlist2[i].split(' ')[5].split('\n')[0]) < 0:
+                invalid += 1
+            else:
+                useraccount[j] = int(useraccount[j]) - int(accountlist2[i].split(' ')[5].split('\n')[0])
+                useraccount[int(accountlist2[i].split(' ')[4].split('r')[1])-1] = int(useraccount[int(accountlist2[i].split(' ')[4].split('r')[1])-1]) + int(accountlist2[i].split(' ')[5].split('\n')[0])
+                valid[j] += 1
+                validtime[j].append(accountlist2[i].split(' u')[0])
+
+suspicioususer = []
+for i in range(usernumber):
+    for j in range(1,len(validtime[i])-1):
+        if validtime[i][j][:16] == validtime[i][j+1][:16] and validtime[i][j-1][:16] == validtime[i][j][:16]: #이거는 형식이 바뀔 일이 없으니까 그냥 문자열 자르기 했음
+            suspicioususer.append(f'user{i+1}')
+       
+
+with open('result.txt','w') as f:
+    for i in range(len(useraccount)):
+        f.write(f'user{i+1}: '+f'{useraccount[i]}\n')
+    f.write(f'INVALID: {invalid}\n')
+    for i in range(usernumber):
+        if valid[i] == max(valid):
+            f.write('MOST_ACTIVE: '+f'user{i+1}')
+    f.write('\nSUSPICIOUS: ')
+    for i in range(len(suspicioususer)):
+        f.write(suspicioususer[i]+' ')
