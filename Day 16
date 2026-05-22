@@ -1,0 +1,121 @@
+"""
+=============================================================================
+[문제 명칭] Subway Traffic Simulator (지하철 운행 및 승객 동기화 시뮬레이션)
+[학습 목표] 연쇄 상태 변화 처리, 우선순위 기반 데이터 자동화, 복합 데이터 구조 설계
+
+[요구사항 정의]
+1. 승객 관리(PASSENGER): 역별 대기열(queue) 추가 및 존재 여부 검증.
+2. 열차 운행(TRAIN/DEPART): 역 도착 시 대기열의 승객을 최대 수용 인원만큼 자동 탑승 처리.
+3. 환승 로직(TRANSFER): 열차 내 승객의 하차 및 특정 역 대기열로의 이동 처리.
+4. 예외(Anomaly) 처리: 존재하지 않는 객체 참조, 중복 승차/탑승, 잘못된 행동 순서 무효화.
+
+[나의 고민과 해결]
+- 열차의 도착과 동시에 승객 탑승이 일어나는 '연쇄 상태 변화'를 처리하기 위해 traindict와 stationdict 간의 실시간 동기화 로직을 구현함.
+- 로직의 흐름을 추적하기 위해 print문을 활용한 임시 디버깅 기법을 적용, 데이터 정의 단계에서 발생하는 split 인덱스 오류를 찾아냄.
+- 다중 딕셔너리와 리스트를 사용하여 복잡한 상태를 관리했으나, 반복문을 중첩하여 사용하는 등 구조적 최적화에 대한 갈증을 느낌.
+
+[느낀점]
+- 로그 순서에 따라 상태가 변하는 시뮬레이션 환경에 익숙해졌음을 느낌.
+- 문법 숙지는 빠르게 끝냈으나, 이를 조합해 더 우아하고 효율적인 구조를 설계하는 데에는 여전히 고민이 많음.
+- 코드의 가독성이나 중첩 반복문 문제를 인식하고 있는 만큼, 향후 자료구조 최적화를 통해 더 효율적인 코드를 작성하고자 함.
+=============================================================================
+"""
+
+subwaylog = []
+traindict = {}
+stationdict = {}
+anomalylist = []
+userdict = {}
+fulltrain = []
+
+with open('subway.txt','r',encoding = 'utf-8') as f:
+    subwaylog = f.readlines()
+
+for logs in subwaylog:
+    loglist = logs.split(' ')
+    action = loglist[2]
+    subject = loglist[3].split('\n')[0]
+
+    if action == 'PASSENGER':
+        if subject not in userdict:
+            userdict[subject] = 0
+        station = loglist[4].split('\n')[0]
+        if station not in stationdict:
+            stationdict[station] = []
+        depart = [traindict[train]['passenger']for train in traindict if traindict[train]['station'] == 0]
+        if subject not in stationdict[station] and not any(subject in lines for lines in depart):
+            stationdict[station].append(subject)
+        else:
+            anomalylist.append(subject)
+            continue
+
+    elif action == 'TRAIN':
+        if subject not in traindict:
+            traindict[subject] = {'passenger':[],'station':0}
+        station = loglist[4]
+        capacity = int(loglist[5].split('\n')[0])
+        if traindict[subject]['station'] == station:
+            anomalylist.append(subject)
+            continue
+        traindict[subject]['station'] = station      
+        if len(stationdict[station]) >= capacity:
+            for x in range(capacity):
+                ride = stationdict[station].pop(0)
+                traindict[subject]['passenger'].append(ride)
+                fulltrain.append(subject)
+        else:
+            for x in range(len(stationdict[station])):
+                ride = stationdict[station].pop(0)
+                traindict[subject]['passenger'].append(ride)
+       
+    elif action == 'TRANSFER':
+        station = loglist[4].split('\n')[0]
+        for items in traindict.items():
+            if subject in items[1]['passenger']:
+                train = items[0]
+                break
+        if traindict[train]['station'] == station:
+            traindict[train]['passenger'].remove(subject)
+            stationdict[station].append(subject)
+            userdict[subject] += 1
+
+        else:
+            anomalylist.append(subject)
+
+    elif action == 'DEPART':
+        if subject not in traindict:
+            anomalylist.append(subject)
+            continue
+        traindict[subject]['station'] = 0
+
+anomalylist = sorted(set(anomalylist))
+maxnum = max([len(stationdict[station]) for station in stationdict])
+fulltrain = sorted(set(fulltrain))
+maxnum2 = max([userdict[user] for user in userdict])
+
+with open('result.txt','w') as g:
+    for users in sorted(list(userdict.keys())):
+        for trains in traindict:
+            if users in traindict[trains]['passenger']:
+                g.write(users+' : TRAIN '+trains+'\n')
+                break
+        for stations in stationdict:
+            if users in stationdict[stations]:
+                g.write(users+' : STATION '+stations+'\n')
+                break
+    g.write('BUSIEST_STATION: ')
+    for stations in stationdict:
+        if len(stationdict[stations]) == maxnum:
+            g.write(stations+' ')
+    g.write('\nFULL_TRAIN: ')
+    for trains in fulltrain:
+        g.write(trains+' ')
+    g.write('\nMOST_MOVED_USER: ')
+    for users in userdict:
+        if userdict[users] == maxnum2:
+            g.write(users+' ')
+    g.write('\nANOMALY: ')
+    for anomalies in anomalylist:
+        g.write(anomalies+' ')
+   
+   
