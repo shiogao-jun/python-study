@@ -1,0 +1,106 @@
+"""
+=============================================================================
+[문제 명칭] 배달 기사 상태 기반 실시간 자동 배차 및 이상 탐지 시스템
+[학습 목표] 다중 상태(로그인, 배달 중) 관리, 동적 최소값 탐색, 요구사항 결함 분석
+
+[요구사항 정의]
+1. 자동 배차 로직: 주문(ORDER) 발생 시, 현재 로그인(LOGIN) 상태인 기사 중 
+   누적 배달 시간이 가장 적은 기사에게 배정.
+2. 동점자 처리: 누적 시간이 같을 경우 이름 사전순(Alphabetical) 최우선 배정.
+3. 상태 전환 및 누적: 배정 시 기사의 누적 시간에 예상 배달 시간을 더하고, 
+   COMPLETE 시 상태를 초기화(누적 시간은 유지).
+4. 예외(Anomaly) 탐지: 비정상적인 COMPLETE(미로그인, 엉뚱한 주문 등) 필터링.
+5. 결과 영속성: 파일 입출력(`result.txt`)을 통한 최종 리포트 생성.
+
+[나의 고민과 해결]
+- 문제의 요구사항에 누락된 부분(로그아웃 시 누적 시간 초기화 여부 등)을 스스로 
+  정의하여 예외 상황을 통제함.
+- `min()` 함수 사용 시 리스트가 비어있을 때 발생하는 `ValueError`를 `try-except`로 
+  처리하여 시스템 다운을 방지함 (실무의 Fallback 로직).
+- 동점자 처리 조건인 '이름 사전순'을 `sorted(riderlist)` 단 한 줄로 깔끔하게 해결함.
+- `dvdict`와 `riderlist`의 참조 오류를 15분간의 치열한 디버깅 끝에 스스로 찾아냄.
+
+[느낀점]
+- 3시간이나 걸렸고 코드가 여전히 반복문 투성이라고 느꼈지만, 
+  요구사항의 빈틈을 파악하고 오류를 추적해 결국 돌아가게 만들었다는 점에서 
+  엔지니어로서의 진짜 끈기를 증명한 시간이었다. 
+=============================================================================
+"""
+
+dvlist = []
+with open('delivery.txt','r',encoding = 'utf-8') as f:
+    for lines in f.readlines():
+        dvlist.append(lines)
+
+dvdict = {}
+timelist = []
+orderedlist = []
+anomalylist = []
+riderlist = []
+
+for dv in dvlist:
+    dvylist = dv.split(' ')
+    if len(dvylist) == 5:
+        dvylist.insert(2,'')
+    action = dvylist[3].split('\n')[0]
+    if action == 'LOGIN':
+        rider = dvylist[2]
+        if rider not in dvdict:
+            dvdict[rider] = {'state':' ','time':0}
+            timelist.append(0)
+        if rider not in riderlist:
+            riderlist.append(rider)
+
+    elif action == 'ORDER':
+        if riderlist == []:
+            continue
+        time = int(dvylist[5].split('\n')[0])
+        order = dvylist[4]
+        for riders in riderlist:
+            if 'order' not in dvdict[riders]['state']:
+                timelist.append(dvdict[riders]['time'])
+        try:
+            for rider in sorted(riderlist):
+                if dvdict[rider]['time'] == min(timelist):
+                    dvdict[rider]['state'] = order
+                    dvdict[rider]['time'] += time
+                    orderedlist.append(order)
+                    timelist = []
+                    break
+        except ValueError:
+            for rider in sorted(riderlist):
+                if dvdict[rider]['time'] == 0:
+                    dvdict[rider]['state'] = order
+                    dvdict[rider]['time'] += time
+                    orderedlist.append(order)
+                    timelist = []
+                    break
+
+    elif action == 'COMPLETE':
+        rider = dvylist[4]
+        order = dvylist[5].split('\n')[0]
+        if rider not in dvdict or order not in orderedlist or dvdict[rider]['state'] != order:
+            anomalylist.append(rider)
+        else:
+            dvdict[rider]['state'] = ' '
+            orderedlist.remove(order)
+
+    elif action == 'LOGOUT':
+        rider = dvylist[2]
+        riderlist.remove(rider)
+
+maxtime = max([dvdict[rider]['time'] for rider in dvdict])      
+with open('result.txt','w') as g:
+    for riders in sorted(list(dvdict.keys())):
+        g.write(riders+f": {dvdict[riders]['time']}\n")
+    g.write('PENDING: ')
+    for orders in sorted(orderedlist):
+        g.write(orders+' ')
+    g.write('\nTOP_RIDER: ')
+    for riders in dvdict:
+        if dvdict[riders]['time'] == maxtime:
+            g.write(riders+' ')
+    g.write('\nANOMALY: ')
+    for riders in sorted(set(anomalylist)):
+        g.write(riders+' ')
+       
