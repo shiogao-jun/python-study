@@ -1,0 +1,69 @@
+"""
+=============================================================================
+[문제 명칭] 채팅 로그 기반 활동 및 혼잣말 사용자 분석
+[학습 목표] 문자열 파싱(split)과 파일 간 인덱스 기반 상태 비교
+
+[요구사항 정의]
+1. 자동 파일 검색: 'chat'으로 시작하고 '.txt'로 끝나는 파일 탐색.
+2. 사용자별 메시지 빈도: 각 사용자(userN)의 총 메시지 개수 집계.
+3. 혼잣말 사용자 탐지: 메시지 앞뒤 사용자(이웃 노드)와 본인이 다른 경우를 찾아내기.
+4. 결과 생성: 가장 많이 활동한 사용자(공동 1위 포함)와 혼잣말 사용자 목록 생성.
+
+[나의 고민과 해결]
+- read() 대신 readlines()를 활용해 줄 단위 처리를 시도함.
+- split() 메서드를 사용하여 문자열에서 사용자 정보(userN)만 추출하는 효율적인 파싱 로직 구현.
+- 혼잣말 분석을 위해 리스트의 i-1, i, i+1 인덱스를 비교하는 알고리즘을 설계함.
+
+[느낀점]
+- split()의 위력을 실감했다. 하드코딩으로 문자열을 자르던 때보다 코드가 훨씬 간결해졌다.
+- 줄 단위로 데이터를 관리하니 앞뒤 관계를 파악하는 로직이 훨씬 명확해졌다. 
+  구조를 제대로 잡으니 복잡해 보이던 문제도 풀리는 게 신기하다.
+=============================================================================
+"""
+
+chatlist = []
+import os
+for i in range(len(os.listdir())):
+    if os.listdir()[i].startswith('chat') and os.listdir()[i].endswith('.txt'):
+        with open(os.listdir()[i],'r',encoding = 'utf-8') as f:
+             chatlist.append(f.readlines())
+
+chatlist2 = []
+for i in range(len(chatlist)):
+    for j in range(len(chatlist[i])):
+            chatlist2.append(chatlist[i][j])
+
+comparelist = []
+for i in range(len(chatlist2)):
+    comparelist.append(chatlist2[i].split()[1].replace('user','').replace(':',''))
+
+userfreq = []
+usernum = int(max(comparelist))
+for i in range(usernum):
+    userfreq.append(0)
+   
+for i in range(len(chatlist2)):
+    for j in range(usernum):
+        userfreq[j] += f'user{j+1}:' == chatlist2[i].split(' ')[1]
+
+lonelyuser = []
+for i in range(len(chatlist)):
+    for j in range(1,len(chatlist[i])-1):
+        if chatlist[i][j].split(' ')[1].replace(':','') != chatlist[i][j-1].split(' ')[1].replace(':','') and chatlist[i][j].split(' ')[1].replace(':','') != chatlist[i][j+1].split(' ')[1].replace(':',''):  
+            lonelyuser.append(chatlist[i][j].split(' ')[1].replace(':',''))
+
+lonelyuser = sorted(list(set(lonelyuser)))
+
+freqnum = max(userfreq)
+with open('result.txt','w') as g:
+    for i in range(usernum):
+        g.write(f'user{i+1}: '+f'{userfreq[i]}\n')
+    g.write('\nMOST_ACTIVE: ')
+    for i in range(usernum):
+        if userfreq[i] == freqnum:
+            g.write(f'user{i+1} ')
+
+    g.write('\nLONELY_USERS: ')
+    for i in range(len(lonelyuser)):
+        g.write(lonelyuser[i]+' ')
+       
