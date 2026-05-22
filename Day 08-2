@@ -1,0 +1,92 @@
+"""
+=============================================================================
+[문제 명칭] 인메모리 파일 시스템 사용량 및 이상 행동(Anomaly) 분석기
+[학습 목표] 중첩 딕셔너리를 활용한 상태 관리 및 데이터 재포맷팅 기법 습득
+
+[요구사항 정의]
+1. 실시간 용량 계산: ADD/DELETE 이벤트를 추적하여 사용자별 파일 보유 현황 및 용량 산출.
+2. 디렉터리 기반 누적: 파일 경로를 파싱하여 상위 폴더별 전체 사용량 집계.
+3. 무결성 검증 및 예외 탐지: 중복 파일 생성(ADD) 또는 존재하지 않는 파일 삭제(DELETE) 탐지.
+4. 분석 결과: 사용자별 최종 사용량, 최하위/최상위 사용자, 폴더별 통계, 이상 행동 사용자 목록.
+
+[나의 고민과 해결]
+- `userdict[user] = {'file':[], 'capacity':{}}` 구조를 설계하여 사용자별 파일의 
+  존재 여부와 개별 용량을 독립된 데이터셋으로 안전하게 분리함.
+- 폴더별 집계 시 문자열 슬라이싱과 `split('/')`을 활용해 상위 디렉터리명을 
+  유연하게 추출함.
+- 최종 결과 산출 시 복잡한 구조의 딕셔너리를 단일 값(`sum()`)으로 변환(Overwrite)하여 
+  이후 최대치(`max()`) 산출 로직을 극도로 단순화함.
+
+[느낀점]
+- 머릿속으로 그린 데이터 구조가 한 번의 디버깅도 없이 콘솔창에 그대로 구현되었을 때의 
+  희열을 배운 순간이다. 데이터의 생명 주기(Life Cycle)에 맞춰 구조를 변형하는 
+  설계의 재미를 완벽하게 이해했다.
+=============================================================================
+"""
+
+userlist = []
+with open('files.txt','r',encoding='utf-8') as f:
+    for lines in f.readlines():
+        userlist.append(lines)
+userlist.sort()
+userdict = {}
+anomalylist = []
+filedict = {}
+
+for lines in userlist:
+    lineslist = lines.split(' ')
+    action = lineslist[2]
+    user = lineslist[3]
+    subject = lineslist[4].split('\n')[0]
+
+    if user not in userdict:
+        userdict[user] = {'file':[],'capacity':{}}
+
+    if action == 'ADD':
+        if subject in userdict[user]['capacity']:
+            anomalylist.append(user)            
+        else:
+            capacity = int(lineslist[5])
+            userdict[user]['file'].append(subject)
+            userdict[user]['capacity'][subject] = capacity
+
+    elif action == 'DELETE':
+        if subject not in userdict[user]['capacity']:
+            anomalylist.append(user)
+        else:
+            userdict[user]['file'].remove(subject)
+            userdict[user]['capacity'].pop(subject)
+
+for users in userdict:
+    for file in userdict[users]['capacity']:
+        filetype = file.split('/')[1]
+        if filetype not in filedict:
+            filedict[filetype] = 0
+        filedict[filetype] += userdict[users]['capacity'][file]
+       
+for users in userdict:
+    userdict[users]['capacity'] = sum(userdict[users]['capacity'].values())
+
+for users in userdict:
+    print(users+f": {userdict[users]['capacity']}")
+
+for users in userdict:
+    userdict[users] = userdict[users]['capacity']
+
+freqlist = []
+for users in userdict:
+    if userdict[users] == max(list(userdict.values())):
+        freqlist.append(users)
+
+print('TOP_USER: ',end = '')
+for i in range(len(freqlist)):
+    print(freqlist[i],end = ' ')
+
+print('\n',end= '') #줄바꾸기때문에넣은거임(한줄만바꾸려고)
+for file in filedict:
+    print(file+f': {filedict[file]}')
+
+sortanomaly = sorted(list(set(anomalylist)))
+print('ANOMALY: ',end = '')
+for i in range(len(sortanomaly)):
+    print(sortanomaly[i],end = ' ')
