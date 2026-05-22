@@ -1,0 +1,99 @@
+"""
+=============================================================================
+[문제 명칭] 메신저 알림 서버 실시간 상태 동기화 및 Anomaly 탐지
+[학습 목표] 유저/채팅방의 다중 상태 교차 검증, 누적 데이터(Unread) 관리, 자체 구조 최적화
+
+[요구사항 정의]
+1. 로그인 상태 관리: LOGIN/LOGOUT 로그를 통해 현재 접속 중인 활성 유저(userlist) 추적.
+2. 실시간 알림 분배: SEND 발생 시, 동일한 채팅방에 있는 '다른 접속 유저'들의 unread 카운트 증가.
+3. 데이터 구조 간소화: 유저의 참가 방 목록과 안 읽은 메시지 수를 `userdict[user]['unread']` 
+   단일 딕셔너리로 통합하여 메모리와 로직을 최적화.
+4. 예외 처리: 미로그인 상태의 액션, 중복 로그인, 존재하지 않는 방에서의 READ 등 방어 로직 구현.
+
+[나의 고민과 해결]
+- 초기에는 `room` 리스트와 `unread` 딕셔너리를 따로 관리하려 했으나, 
+  딕셔너리의 키(key) 자체가 방 참여 여부를 의미한다는 것을 깨닫고 구조를 전면 갈아엎음.
+- SEND 로직에서 오프라인 유저나 본인에게 알림이 가는 버그를 30분간 추적함. 
+  결과적으로 전체 유저(`userdict`)가 아닌 현재 로그인 유저(`userlist`)를 
+  순회하도록 수정하여 논리적 결함을 완벽히 해결함.
+- 문제 출제자(기획자)의 정답 데이터에 존재하는 논리적 오류를 스스로 발견하고 지적함.
+
+[느낀점]
+- 2시간 반이 걸렸고 디버깅에만 30분을 쏟았지만, 머릿속에서 복잡하게 엉켜있던 
+  상태(State)들이 딱 맞아떨어지며 돌아갈 때의 쾌감은 이루 말할 수 없었다.
+=============================================================================
+"""
+
+chatlist = []
+userdict = {}
+anomalylist = []
+userlist = []
+roomdict = {}
+with open('messenger.txt','r',encoding = 'utf-8') as f:
+    for chats in f.readlines():
+        chatlist.append(chats)
+
+for logs in chatlist:
+    logslist = logs.split(' ')
+    user = logslist[2]
+    action = logslist[3].split('\n')[0]
+
+    if action == 'LOGIN':
+        if user in userlist:
+            anomalylist.append(user)
+            continue
+        elif user not in userdict:
+            userdict[user] = {'unread':{}}
+        userlist.append(user)
+
+    elif user not in userlist:
+            anomalylist.append(user)
+            continue
+
+    elif action == 'JOIN':
+        room = logslist[4].split('\n')[0]    
+        if room in userdict[user]['unread']:
+            anomalylist.append(user)
+            continue        
+        userdict[user]['unread'][room] = 0
+
+    elif action == 'SEND':
+        room = logslist[4].split('\n')[0]        
+        if room not in userdict[user]['unread']:
+            anomalylist.append(user)
+            continue
+        elif room not in roomdict:
+            roomdict[room] = 0
+        for users in userlist:
+            if users == user:
+                roomdict[room] += 1
+                continue
+            elif room in userdict[users]['unread']:
+                userdict[users]['unread'][room] += 1
+       
+    elif action == 'READ':
+        room = logslist[4].split('\n')[0]
+        if room not in userdict[user]['unread']:
+            anomalylist.append(user)
+            continue
+        userdict[user]['unread'][room] = 0
+
+    elif action == 'LOGOUT':                
+        userlist.remove(user)
+
+anomalylist = sorted(set(anomalylist))
+maxmsg = max(list(roomdict.values()))
+with open('result.txt','w') as g:
+    for users in userdict:
+        g.write(users)
+        g.write(f": {sum(list(userdict[users]['unread'].values()))}\n")
+    for rooms in roomdict:
+        g.write(rooms)
+        g.write(f": {roomdict[rooms]}\n")
+    g.write('HOT_ROOM: ')
+    for room in sorted(roomdict.keys()):
+        if roomdict[room] == maxmsg:
+            g.write(room+' ')
+    g.write('\nANOMALY: ')
+    for users in anomalylist:
+        g.write(users+' ')
