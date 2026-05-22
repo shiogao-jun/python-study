@@ -1,0 +1,87 @@
+"""
+=============================================================================
+[문제 명칭] LRU(Least Recently Used) 캐시 및 로그 분석 시스템
+[학습 목표] 캐시 교체 알고리즘(LRU)의 원리 이해 및 상태 기반 데이터 관리
+
+[요구사항 정의]
+1. 캐시 관리: 최대 3개의 항목 유지. 초과 시 가장 오래된 항목 삭제.
+2. LRU(Least Recently Used): GET 또는 PUT 호출 시 해당 키를 최신 순서로 갱신.
+3. 데이터 검증: 존재하지 않는 키 GET 시 'MISS' 처리.
+4. 분석 결과: 최종 캐시 상태, 각 키의 총 접근 횟수, 가장 자주 접근한 HOT KEY 추출.
+
+[나의 고민과 해결]
+- 리스트(`resultkey`)를 사용하여 캐시의 접근 순서를 관리하고, 
+  딕셔너리(`cachedict`)로 키별 상세 정보(값, 접근 횟수)를 저장함.
+- `pop(0)`을 통해 가장 오래된 데이터를 삭제하고 `append()`를 통해 최신 데이터를 
+  뒤로 보내는 방식으로 LRU 알고리즘을 구현함.
+- GET/PUT 명령에 따라 캐시 순서를 동적으로 변경하는 상태 제어 로직을 완성함.
+
+[느낀점]
+- 코드를 짜기 전에 데이터가 어떻게 변할지 '순서'를 머릿속으로 그려보는 것이 중요하다는 걸 깨달았다.
+- 3시간 동안 고민하며 리스트와 딕셔너리의 조합이 얼마나 강력한지 체감함. 
+  처음엔 막막했지만, 시스템이 돌아가는 걸 보니 '설계'의 재미를 알 것 같다.
+=============================================================================
+"""
+
+with open('cache_log.txt','r',encoding = 'utf-8') as f:
+    cachelist = f.readlines()
+
+g = open('result.txt','w')
+   
+for i in range(len(cachelist)):
+    if '\n' in cachelist[i]:
+        cachelist[i] = cachelist[i].replace('\n','')
+
+cachedict = {}
+resultkey = []
+
+for i in range(len(cachelist)):
+    cachelist2 = cachelist[i].split(' ')
+    action = cachelist2[2]
+    subject = cachelist2[3]
+
+    if action == 'GET':
+        if subject in resultkey:
+            g.write('GET '+subject+f" -> {cachedict[subject]['amount']}\n")
+            cachedict[subject]['accesstimes'] += 1
+        elif subject not in resultkey:
+            g.write(subject+' -> MISS\n')
+            continue
+
+    if subject not in cachedict:
+        cachedict[subject] = {'amount':0,'accesstimes':0}
+        if len(resultkey) <= 2:
+            resultkey.append(subject)
+        elif len(resultkey) == 3:
+            resultkey.pop(0)
+            resultkey.append(subject)
+
+    elif subject in cachedict and subject in resultkey:
+        resultkey.remove(subject)
+        resultkey.append(subject)
+
+    elif subject in cachedict and subject not in resultkey :
+        resultkey.pop(0)
+        resultkey.append(subject)
+
+    if action == 'PUT':
+        cachedict[subject]['amount'] += int(cachelist2[4])
+        cachedict[subject]['accesstimes'] += 1
+
+g.write('\nCACHE: ')
+for i in range(len(resultkey)):
+    g.write(resultkey[i]+' ')
+
+for i in range(len(cachedict)):
+    g.write('\n'+list(cachedict)[i]+': '+str(cachedict[list(cachedict)[i]]['accesstimes']))
+
+accesstimeslist = []
+for i in range(len(cachedict)):
+    accesstimeslist.append(list(list(cachedict.values())[i].values())[1])
+
+g.write('\nHOT: ')
+for i in range(len(cachedict)):
+    if list(list(cachedict.values())[i].values())[1] == max(accesstimeslist):
+        g.write(list(cachedict.keys())[i]+' ')
+
+g.close()
