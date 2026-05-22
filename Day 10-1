@@ -1,0 +1,92 @@
+"""
+=============================================================================
+[문제 명칭] 다중 채팅방 서버 로그 분석 및 상호 참조 상태 동기화 시스템
+[학습 목표] 이중 딕셔너리 구조 설계, 파일 입출력(File I/O) 실무 적용, 실시간 예외 탐지
+
+[요구사항 정의]
+1. 사용자별 통계: MESSAGE 이벤트를 추적하여 유저별 활동량 계산.
+2. 방별 인원 및 활성도 추적: 최종 시점의 방별 참여자 목록 및 누적 메시지 수 집계.
+3. 다중 접속 예외(ANOMALY) 탐지: 중복 JOIN, 미가입 방에서의 MESSAGE/LEAVE 등 방 내부 상태 무결성 검증.
+4. 데이터 영속성(Persistence): 콘솔 출력을 넘어 `result.txt` 파일로 정제된 리포트 출력.
+
+[나의 고민과 해결]
+- 한 유저가 동시에 여러 방에 들어갈 수 있는 조건을 해결하기 위해, 유저 기준(`userdict`)과 
+  방 기준(`roomdict`)으로 데이터를 상호 참조(Cross-Reference)하는 이중 인덱싱 구조를 고안함.
+- 예외 상황이 발생했을 때 데이터 오염을 막기 위해 `continue` 블록을 활용해 
+  해당 로그 라인의 상태 변화를 안전하게 차단(Early Exit Pattern)함.
+- 대량의 결과 데이터를 화면에 출력하는 대신 표준 파일 쓰기(`with open`) 방식을 채택하여 
+  실제 백엔드 배치(Batch) 프로그램과 유사한 구조로 발전시킴.
+
+[느낀점]
+- 중첩 반복문 없이 오직 딕셔너리의 키 제어만으로 이 복잡한 다중 방 시스템을 
+  45분 만에 풀어내며 데이터 구조 설계의 중요성을 뼈저리게 체감했다.
+- 파일로 결과물이 뚝딱 만들어져 나오는 것을 보며, 단순히 '알고리즘 문제를 푸는 학생'이 아니라 
+  '동작하는 소프트웨어를 만드는 개발자'가 된 듯한 엄청난 성취감을 느꼈다.
+=============================================================================
+"""
+
+chatlist = []
+with open('chatlog.txt','r',encoding = 'utf-8') as f:
+    for lines in f.readlines():
+        chatlist.append(lines)
+
+userdict = {}
+roomdict = {}
+anomalylist = []
+msgcountlist = []
+for lines in chatlist:
+    lineslist = lines.split(' ')
+    user = lineslist[2]
+    action = lineslist[3]
+    room = lineslist[4].split('\n')[0]
+
+    if user not in userdict:
+        userdict[user] = {'room':[],'messagecount':0}
+
+    if room not in roomdict:
+        roomdict[room] = {'user':[],'messagecount':0}
+   
+
+    if action == 'JOIN':
+        if room in userdict[user]['room']:
+            anomalylist.append(user)
+            continue
+        userdict[user]['room'].append(room)
+        roomdict[room]['user'].append(user)
+
+    elif action == 'MESSAGE':
+        if room not in userdict[user]['room']:
+            anomalylist.append(user)
+            continue
+        userdict[user]['messagecount'] += 1
+        roomdict[room]['messagecount'] += 1
+
+    elif action == 'LEAVE':
+        if room not in userdict[user]['room']:
+            anomalylist.append(user)
+            continue
+        userdict[user]['room'].remove(room)
+        roomdict[room]['user'].remove(user)
+
+anomalylist = sorted(set(anomalylist))
+for rooms in roomdict:
+    msgcountlist.append(roomdict[rooms]['messagecount'])
+maxmsgcount = max(msgcountlist)
+
+with open('result.txt','w') as g:
+    for users in userdict:
+        g.write(users+f": {userdict[users]['messagecount']}\n")
+    for rooms in roomdict:
+        g.write(rooms+': ')
+        for users in roomdict[rooms]['user']:
+            g.write(users+' ')
+        g.write('\n')
+    g.write('ANOMALY: ')
+    for users in anomalylist:
+        g.write(users+' ')
+    g.write('\nHOT_ROOM: ')
+    for rooms in roomdict:
+        if roomdict[rooms]['messagecount'] == maxmsgcount:
+            g.write(rooms+' ')
+       
+   
