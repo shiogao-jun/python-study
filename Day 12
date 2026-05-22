@@ -1,0 +1,98 @@
+"""
+=============================================================================
+[문제 명칭] 스마트 택배 보관함 로그 분석 및 듀얼 상태(User/Locker) 관리 시스템
+[학습 목표] 객체별(유저, 사물함) 독립적 상태 추적, 조건부 로직 처리, 기획 데이터 모순 탐지
+
+[요구사항 정의]
+1. 사물함 예약(RESERVE): 비어있고 예약되지 않은 사물함만 점유 가능.
+2. 보관(STORE): 예약자 본인만 빈 사물함에 택배를 보관할 수 있으며, 성공 시 예약 상태 해제.
+3. 수령(PICKUP): 본인의 택배만 수령 가능하며, 성공 시 사물함은 비워짐.
+4. 예외(Anomaly) 처리: 타인 사물함 접근, 중복 예약, 비정상 상태에서의 액션 시 로그 무효화.
+
+[나의 고민과 해결]
+- 유저의 상태(`userdict`)와 사물함의 상태(`lockerdict`)를 분리하여 관리하는 
+  데이터 정규화 설계를 통해 복잡한 검증 로직을 단순화함.
+- 출제자가 제공한 테스트 데이터(로그인 액션과 픽업 액션의 순서)에 논리적 모순이 
+  있음을 스스로 디버깅 과정에서 발견함. 
+- 데이터의 허점 때문에 예약만 된 상태에서 PICKUP이 호출되는 예외를 방어하기 위해 
+  `elif locker in userdict[user]['reserve']:` 로직을 추가하여 시스템 크래시를 막아냄.
+
+[느낀점]
+- 이전보다 훨씬 복잡한 조건이었음에도 불구하고 단 1시간 만에 로직을 완성했다.
+- 무엇보다, 기획자(출제자)가 제공한 데이터의 모순을 짚어내며 '그냥 코딩만 하는 사람'이 
+  아니라 '비즈니스 로직의 결함을 찾아내는 개발자'의 시각을 갖게 되었다. 억울함이 오히려 
+  성장의 확신으로 바뀐 순간이었다.
+=============================================================================
+"""
+
+with open('locker.txt','r',encoding = 'utf-8') as f:
+    lockerlist = f.readlines()
+
+userdict = {}
+rsvlist = []
+lockerdict = {}
+anomalylist = []
+for lines in lockerlist:
+    lineslist = lines.split(' ')
+    user = lineslist[2]
+    action = lineslist[3]
+    locker = lineslist[4].split('\n')[0]
+
+    if user not in userdict:
+        userdict[user] = {'reserve':[],'store':[]}
+
+    if locker not in lockerdict:
+        lockerdict[locker] = 0
+
+    if action == 'RESERVE':
+        if locker in rsvlist or locker in userdict[user]['store']:
+            anomalylist.append(user)
+            continue
+        userdict[user]['reserve'].append(locker)
+        rsvlist.append(locker)
+
+    elif action == 'STORE':
+        if locker in userdict[user]['reserve']:
+            rsvlist.remove(locker)
+            userdict[user]['reserve'].remove(locker)
+            userdict[user]['store'].append(locker)
+            lockerdict[locker] += 1
+
+        else:
+            anomalylist.append(user)
+            continue
+
+    elif action == 'PICKUP':
+        if locker in userdict[user]['store']:
+            userdict[user]['store'].remove(locker)
+
+        elif locker in userdict[user]['reserve']:
+            userdict[user]['reserve'].remove(locker)
+            rsvlist.remove(locker)
+
+        else:
+            anomalylist.append(user)
+            continue
+
+lockerlist = []
+for users in userdict:
+    lockerlist += list(userdict[users].values())[1]
+lockerlist.sort()
+
+maxcount = max(lockerdict.values())
+
+anomalylist = sorted(set(anomalylist))
+
+with open('result.txt','w') as g:
+    for users in userdict:
+        g.write(users+f": {len(userdict[users]['store'])}\n")
+    g.write('OCCUPIED: ')
+    for lockers in lockerlist:
+        g.write(lockers+' ')
+    g.write('\nHOT_LOCKER: ')
+    for lockers in sorted(list(lockerdict.keys())):
+        if lockerdict[lockers] == maxcount:
+            g.write(lockers+' ')
+    g.write('\nANOMALY: ')
+    for users in anomalylist:
+        g.write(users+' ')
