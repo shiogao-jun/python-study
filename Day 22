@@ -1,0 +1,152 @@
+'''
+=============================================================================
+[문제 명칭] 스마트 셔틀 배차 시스템 시뮬레이터
+[학습 목표] 복잡한 상태 관리(State Management), 다중 조건 정렬 및 예외 처리(Anomaly Detection) 로직 구현
+
+[요구사항 정의]
+1. 로그 처리: 4가지 이벤트 로그(ARRIVE, SHUTTLE, CANCEL, DEPART)에 따른 실시간 데이터 변동 추적.
+2. 탑승 우선순위 로직: 셔틀 도착 시 (1순위) 가장 많은 인원이 선택한 목적지, (2순위) 우선순위(Priority) 가중치, (3순위) 먼저 도착한 대기자 순으로 탑승.
+3.예외 처리: 중복 도착, 존재하지 않는 유저 취소 등 4가지 이상 상태(Anomaly) 발생 시 해당 로그를 무시하고 별도 기록.
+4. 결과 출력: 모든 시뮬레이션 종료 후 셔틀 최종 탑승객, 정류장 남은 인원, 최고 인기 목적지, 최고 우선순위 탑승자, 예외 로그 목록을 지정된 포맷으로 파일 입출력.
+[나의 고민과 해결]
+-상태 관리의 복잡성: 유저 상태, 정류장 큐, 셔틀 정보, 예외 목록 등을 분리해서 추적하다 보니 초기 설계에서 딕셔너리와 리스트를 도합 7개나 생성하여 대응함.
+-다중 정렬 로직 구현: 리스트 컴프리헨션(List Comprehension) 문법을 적극적으로 도입하여 셔틀 도착 시 목적지 빈도수와 우선순위를 계산하고 매핑하는 로직을 돌파함.
+-방대한 분기 처리: 코드가 119줄로 길어지고 로직이 산으로 가는 듯한 고통이 있었으나, 각 액션별로 Early Return을 적용해 예외를 먼저 걸러내는 방식으로 테스트 케이스의 정답과 100% 일치하는 결과를 강제로 뽑아냄.
+[느낀점]
+-이 코드를 보고 토를 하실 분들께 미리 죄송합니다
+-문제요건을 충족시킨것처럼 보이나 아직 부족한 논리가 상당수
+-리스트 컴프리헨션을 좀 더 편하게 쓸 수 있게 되었다
+-그냥 작동 안해요 보지 말아주세요
+=============================================================================
+'''
+
+stationlog = []
+stationdict = {}
+shuttledict = {}
+anomalylist = []
+destinationdict = {}
+rideuser = {}
+userdict = {'waiting':[],'riding':[]}
+
+with open('stationlog.txt','r',encoding = 'utf-8') as f:
+    stationlog = f.readlines()
+
+from datetime import datetime
+
+for logs in stationlog:
+    logslist = logs.split(' ')
+    action = logslist[2]
+    subject = logslist[3].split('\n')[0]  
+    time = datetime.strptime(logslist[0]+logslist[1],"%Y-%m-%d%H:%M:%S").timestamp()
+
+    if len(logslist) > 4:
+        station = logslist[4]
+        if station not in stationdict:
+            stationdict[station] = {}
+
+    if action == 'ARRIVE':
+        if subject in userdict['waiting'] or subject in userdict['riding']:
+            anomalylist.append(logs.split('\n')[0])
+            continue
+        destination = logslist[5]
+        if destination not in destinationdict:
+            destinationdict[destination] = 0
+        destinationdict[destination] += 1
+        priority = int(logslist[6].split('\n')[0])
+        stationdict[station][subject] = []
+        stationdict[station][subject].append(destination)
+        stationdict[station][subject].append(priority)
+        stationdict[station][subject].append(time)
+        userdict['waiting'].append(subject)
+
+    elif action == 'CANCEL':
+        if subject not in userdict['waiting'] or subject in userdict['riding']:
+            anomalylist.append(logs.split('\n')[0])
+            continue
+        for stations in stationdict:
+            if subject in stationdict[stations]:
+                stationdict[stations].pop(subject)
+                break
+
+    elif action == 'SHUTTLE':
+        
+        if subject in shuttledict and shuttledict[subject]['current'] != 0:
+            anomalylist.append(logs.split('\n')[0])
+            continue
+        
+        if subject not in shuttledict:
+            shuttledict[subject] = {'current':0,'users':[]}
+
+        capacity = int(logslist[5].split('\n')[0])
+        shuttledict[subject]['current'] = station
+        togolist = [stationdict[station][user][0] for user in  stationdict[station]]
+        popular = max(togolist,key=togolist.count)
+        num = togolist.count(popular)
+        prioritylist = sorted([(stationdict[station][user][1],user) for user in stationdict[station]\
+                               if stationdict[station][user][0] == popular],reverse = True)
+        popularlist = [users for users in stationdict[station] if stationdict[station][users][0] == popular]
+
+        if num == capacity:
+            for user in popularlist:
+                rideuser[user] = stationdict[station][user][1]
+                stationdict[station].pop(user)
+                shuttledict[subject]['users'].append(user)
+                userdict['waiting'].remove(user)
+                userdict['riding'].append(user)
+
+        elif num > capacity:
+            for x in range(capacity):
+                rideuser[user] = stationdict[station][user][1]
+                user = prioritylist.pop(0)[1]
+                stationdict[station].pop(user)
+                shuttledict[subject]['users'].append(user)
+                userdict['waiting'].remove(user)
+                userdict['riding'].append(user)
+                
+        elif num < capacity:
+            timelist = sorted([(stationdict[station][user][2],user) for user in stationdict[station]])
+            for x in range(capacity):
+                rideuser[user] = stationdict[station][user][1]
+                user = timelist.pop(0)[1]
+                stationdict[station].pop(user)
+                shuttledict[subject]['users'].append(user)
+                userdict['waiting'].remove(user)
+                userdict['riding'].append(user)
+            
+
+    elif action == 'DEPART':
+        if subject not in shuttledict or shuttledict[subject]['current'] == 0:
+            anomalylist.append(logs.split('\n')[0])
+            continue            
+        shuttledict[subject]['current'] = 0
+            
+with open('result.txt','w') as g:
+    g.write('[SHUTTLE_STATUS]')
+    for shuttle in shuttledict:
+        g.write('\n'+shuttle+': ')
+        g.write(" ".join(shuttledict[shuttle]['users']))
+    g.write('\n\n[STATION_STATUS]')
+    for station in stationdict:
+        g.write('\n'+station+': ')
+        g.write(" ".join(list(stationdict[station].keys())))
+    g.write('\n\n[MOST_POPULAR_DESTINATION\n')
+    for stations in [station for station in destinationdict\
+                     if destinationdict[station] == max(list(destinationdict.values()))]:
+        g.write(stations+' ')
+    g.write('\n\n[TOP_PRIORITY_USER]\n')
+    for users in [user for user in rideuser if rideuser[user] == max(list(rideuser.values()))]:
+        g.write(users+' ')
+    g.write('\n\n[ANOMALY_LOGS]')
+    for logs in anomalylist:
+        g.write('\n'+logs)
+
+    
+
+        
+
+        
+
+
+
+
+    
